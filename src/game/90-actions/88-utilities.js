@@ -10,6 +10,13 @@ Object.assign(ACT,{
    if(q.gen)p.gen=true;if(q.site){p.site2=true;p.site2Day=S.day;}if(q.router)p.routers=2;
    const moves=new Map(q.moves.map(m=>[m.id,m.site]));for(const c of S.caches)if(moves.has(c.id))c.site=moves.get(c.id);
    after();const msg=tr('utilities.kit_applied',{city:CITY[city].name});if(modal)utilitiesModal(city,msg);else toast(esc(msg),'good');},
+ // The kit at every POP (Ops one-off batch), busiest first, each through the one-POP action above, muted like the
+ // intern's work. A POP the cash left does not cover is skipped, so cheaper ones further down still get theirs.
+ utilityKitAll:({cost})=>{const A=utilityKitAll();if(!A||!A.pops.length)return;
+   if(A.cost!==+cost){renderPanel();toast(tr('utilities.quote_changed'));return;}
+   const c0=S.cash;let n=0,skip=0;
+   opsQuiet(()=>{for(const {city,q} of A.pops){if(S.cash<q.cost){skip++;continue;}ACT.utilityKit({city,cost:q.cost});n++;}});
+   toast((n?trn('ops.kit_all_done',n,{cost:fmt$(c0-S.cash)}):'')+(n&&skip?'<br>':'')+(skip?trn('ops.kit_all_short',skip):''),skip?'bad':'good');sfx('build');after();},
  utilityCaches:({city,quote,modal})=>{const q=utilityCaches(city);if(!q||!q.add.length)return;
    if(q.key!==quote){if(modal)utilitiesModal(city,tr('utilities.quote_changed'));else{renderPanel();toast(tr('utilities.quote_changed'));}return;}
    if(!portGate(city,q.ports))return;

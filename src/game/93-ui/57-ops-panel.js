@@ -41,7 +41,9 @@ function opsReportHtml(){const O=S.ops,w=Math.floor(S.day/7),cur=O.wk&&O.wk.w===
   const row=(t,x)=>`<div class="ops-rep"><div class="eyebrow">${t}</div><div>${esc(opsWeekLine(x))}</div></div>`;
   return (rep?row(tr('ops.report_last'),rep):'')+(cur?row(tr('ops.report_now'),cur):'');}
 // The big one-off batches (#181, #192) live here now, next to the orders that run them every week.
-const opsOnceHtml=()=>`<section><h3>${tr('ops.by_hand')}</h3><p class="meta">${tr('ops.by_hand_note')}</p><div class="btns">${btn(tr('utilities.title'),'utilities',{},'sm')}${btn(tr('pni_all.peer_all_networks'),'pniAllOpen',{net:null},'sm')}</div></section>`;
+// The redundancy kit for every POP is priced on the button; it can start as soon as the cheapest POP is affordable.
+const opsOnceHtml=()=>{const A=utilityKitAll(),n=A?A.pops.length:0;
+  return `<section><h3>${tr('ops.by_hand')}</h3><p class="meta">${tr('ops.by_hand_note')}</p><div class="btns">${btn(tr('utilities.title'),'utilities',{},'sm')}${btn(tr('pni_all.peer_all_networks'),'pniAllOpen',{net:null},'sm')}${n?btn(trn('ops.kit_all',n,{cost:fmt$(A.cost),mo:fmt$(A.mo)}),'utilityKitAll',{cost:A.cost},'sm',S.cash<Math.min(...A.pops.map(x=>x.q.cost))):''}</div></section>`;};
 // On a city without a POP: open it from the template in one tap.
 function opsTplHtml(c){if(!opsHired())return '';const q=opsTplQuote(c);if(!q)return '';
   return `<section><h3>${tr('ops.template')}</h3><p class="meta">${esc(tr('ops.tpl_offer',{name:opsName(),list:[tr('ops.tpl_pop'),...q.parts].join(', ')}))}</p><div class="btns">${btn(tr('ops.tpl_open',{cost:fmt$(q.cost)}),'opsNewPop',{city:c},'pink',S.cash<q.cost)}</div></section>`;}

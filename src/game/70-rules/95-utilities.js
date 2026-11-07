@@ -30,6 +30,10 @@ function utilityKit(city){const p=S&&S.pops[city];if(!p)return null;
   const gen=!p.gen,site=!p.site2,router=(p.routers||1)<2,g=p.rgen||0;
   return {gen,site,router,moves:utilityCacheMoves(city),cost:(gen?GEN_COST:0)+(site?SITE2_COST:0)+(router?routerCost(g,1):0),
     mo:(gen?GEN_MO:0)+(site?SITE2_MO:0)+(router?routerMo(g):0)};}
+// The kit at every POP that still lacks some of it (an Ops one-off batch), busiest first: the order the money goes in.
+function utilityKitAll(){if(!S)return null;const ld=(R&&R.nodeLoad)||{};
+  const L=Object.keys(S.pops).map(city=>({city,q:utilityKit(city)})).filter(x=>x.q&&(x.q.cost||x.q.moves.length)).sort((a,b)=>(ld[b.city]||0)-(ld[a.city]||0)||(a.city<b.city?-1:1));
+  return {pops:L,cost:L.reduce((a,x)=>a+x.q.cost,0),mo:L.reduce((a,x)=>a+x.q.mo,0)};}
 function utilityPeers(){if(!S)return [];return Object.keys(S.ixp).filter(isIx).map(ix=>{
   const sessions=ixSessions(ix),requests=[],blocked=[];let existing=0;
   for(const id of ixMembers(ix)){
