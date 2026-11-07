@@ -5,10 +5,15 @@ name: Auto-release
 # as notes, and starts the deploy. Releases created with the workflow token do
 # not fire the "released" event, so the deploy is started explicitly, from the
 # tag, which keeps the github-pages environment's v* tag rule happy.
+#
+# It runs when CI finishes on main, so a release never repeats the push's tests:
+# CI green on the commit that bumped the version is the go. A red CI releases
+# nothing. Started by hand, it has no CI result to go by, so it tests first.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths: [package.json]
   workflow_dispatch:
 
 permissions:
@@ -20,18 +25,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  check:
+    # After CI: only a green run of a push to main (not a PR's run, not a release's own call).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+    outputs:
+      skip: ${{ steps.v.outputs.skip }}
+      ver: ${{ steps.v.outputs.ver }}
+      tag: ${{ steps.v.outputs.tag }}
+      pre: ${{ steps.v.outputs.pre }}
+      # The commit CI tested (main may have moved on since); by hand, main as it is now.
+      sha: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: npm
 
       - name: Work out the version and whether it is new
         id: v
@@ -57,34 +70,47 @@ jobs:
           case "$ver" in *-*) echo "pre=true" >> "$GITHUB_OUTPUT";; *) echo "pre=false" >> "$GITHUB_OUTPUT";; esac
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
-      - name: Test before releasing
-        if: steps.v.outputs.skip == 'false'
-        run: npm ci && npm test
+  # Only when started by hand: after a push, CI has already tested this commit.
+  tests:
+    needs: check
+    if: needs.check.outputs.skip == 'false' && github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.check.outputs.sha }}
+
+  release:
+    needs: [check, tests]
+    if: >-
+      always() && needs.check.result == 'success' && needs.check.outputs.skip == 'false' &&
+      (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.check.outputs.tag }}
+      VER: ${{ needs.check.outputs.ver }}
+      PRE: ${{ needs.check.outputs.pre }}
+      SHA: ${{ needs.check.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.check.outputs.sha }}
 
       - name: Publish the release
-        if: steps.v.outputs.skip == 'false'
-        env:
-          TAG: ${{ steps.v.outputs.tag }}
-          VER: ${{ steps.v.outputs.ver }}
-          PRE: ${{ steps.v.outputs.pre }}
         run: |
           set -euo pipefail
+          awk -v v="$VER" 'index($0,"## ["v"]")==1{f=1;next} /^## \[/{f=0} f' CHANGELOG.md | sed -e '/./,$!d' > notes.md
           pre=(); [ "$PRE" = "true" ] && pre=(--prerelease)
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" --title "$VER" --notes-file notes.md "${pre[@]}"
+            --target "$SHA" --title "$VER" --notes-file notes.md "${pre[@]}"
 
       - name: Deploy it
-        # Pre-releases are for testing and never go live.
-        if: steps.v.outputs.skip == 'false' && steps.v.outputs.pre == 'false'
-        env:
-          TAG: ${{ steps.v.outputs.tag }}
-        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag="$TAG"
+        # Pre-releases are for testing and never go live. CI (or the tests above) already passed on this commit,
+        # so the deploy does not test it again (tested=true).
+        if: env.PRE == 'false'
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag="$TAG" -f tested=true
 
       - name: Publish the Docker image
         # Same pattern as the deploy above: the image is built and pushed from the
         # release tag by docker.yml. Pre-releases get one too: an image tag is
         # pulled on purpose, so a test image costs nothing.
-        if: steps.v.outputs.skip == 'false'
-        env:
-          TAG: ${{ steps.v.outputs.tag }}
         run: gh workflow run docker.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag="$TAG"
