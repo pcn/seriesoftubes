@@ -28,6 +28,8 @@ const API_DOMAINS={
   egress:{table:'PREF',kind:'key'},
   routeMode:{table:'RT',kind:'key'},
   salesPersona:{table:'SALES',kind:'key'},
+  // The router kits (#315): micro, medium, hub.
+  kitId:{kind:'enum',values:()=>POP_KITS},
   site:{kind:'enum',values:['a','b','ab']},
   step:{kind:'enum',values:[1,-1]},
   connKind:{kind:'enum',values:['t','p','ix','c','nni']},

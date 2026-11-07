@@ -26,7 +26,9 @@ const RCAGE=6,CAGE_MUL=1.5,CAGE_MO=2000;
 const routerCost=(g,rt)=>Math.round((ROUTER_COST+RG[g].cost*0.8)*((rt||1)>=RCAGE?CAGE_MUL:1)*hwMul('rt')*techMul(RG[g].lvl));
 const routerMo=g=>ROUTER_MO+RG[g].mo,cageMo=rt=>Math.max(0,(rt||1)-RCAGE)*CAGE_MO;
 // Old routers go on eBuy when you swap models or remove one (#82), like spare optics (#45). Chassis age faster.
-const ROUTER_RESALE=0.3,tradeIn=(g,n)=>Math.round(RG[g].cost*n*ROUTER_RESALE),swapCost=(c,g)=>{const p=S.pops[c],rt=p.routers||1;return Math.max(0,Math.round(RG[g].cost*rt*hwMul('rt')*techMul(RG[g].lvl))-tradeIn(p.rgen||0,rt));};
+// swapCostAt prices a swap for any router count, so a kit (#315) can quote one with a router it has yet to add.
+const ROUTER_RESALE=0.3,tradeIn=(g,n)=>Math.round(RG[g].cost*n*ROUTER_RESALE),swapCostAt=(g0,g,rt)=>Math.max(0,Math.round(RG[g].cost*rt*hwMul('rt')*techMul(RG[g].lvl))-tradeIn(g0,rt)),
+  swapCost=(c,g)=>{const p=S.pops[c];return swapCostAt(p.rgen||0,g,p.routers||1);};
 const RMAX=16;
 // The plain, badge-less model of each class is the default upgrade path; the others are side-grades.
 const mainRG=k=>RG.findIndex(r=>r.cls===k&&!r.badge);

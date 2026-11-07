@@ -8,7 +8,8 @@ const start = "ACT.start({});S.cash=1e8;S.lvl=13;S.nextFail=1e9;S.nextEvent=1e9"
 
 test('a standard POP: new POPs get its router model and count at once, without downtime (#240)', () => {
   const { ev, dom, errors } = load();
-  ev(start + `;S.pops.fra.rgen=${g('Arrrhipster 7280R')};S.pops.fra.routers=2;selectCity('fra');UI.tab='links';renderPanel()`);
+  // The standard's buttons sit behind Edit kits since the router kits (#315).
+  ev(start + `;S.pops.fra.rgen=${g('Arrrhipster 7280R')};S.pops.fra.routers=2;selectCity('fra');UI.tab='links';UI.kitEdit=true;renderPanel()`);
   assert.match(dom.window.document.getElementById('panelBody').textContent, /Make this the standard/);
   ev("ACT.popStdSet({city:'fra'})");
   assert.deepEqual(JSON.parse(ev('JSON.stringify(S.popStd)')), { g: ev(g('Arrrhipster 7280R')), rt: 2 });

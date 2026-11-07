@@ -63,7 +63,9 @@ function sanitize(s){
   if(s.conf){const c=s.conf;if(typeof c!=='object'||!own(REG,c.reg))s.conf=null;else s.conf={until:num(c.until,0),reg:c.reg,name:String(c.name||'').slice(0,40),sp:!!c.sp};}
   // The backbone's technology: a save from before it with Auto-TE bought keeps the old rules on RSVP-TE (legacy).
   // The standard POP build (#240): a router model and how many.
-  {const d=s.popStd;s.popStd=d&&typeof d==='object'&&Number.isInteger(d.g)&&RG[d.g]?{g:d.g,rt:int(d.rt,1,RMAX,1)}:null;}
+  // The router kits (#315), and which of them the standard came from (k). Saves from before kits just get none.
+  {const d=popBuildOk(s.popStd),k=s.popStd&&s.popStd.k;s.popStd=d&&POP_KITS.includes(k)?{...d,k}:d;
+   const o=s.popKits&&typeof s.popKits==='object'&&!Array.isArray(s.popKits)?s.popKits:{};s.popKits={};for(const k of POP_KITS)s.popKits[k]=popBuildOk(o[k]);s.popKitPair=s.popKitPair!==false;}
   {const c=s.core&&typeof s.core==='object'?s.core:null,lv=c?int(c.lv,0,4,0):(s.te?2:0);s.core={lv,run:c?int(c.run,0,lv,lv):lv};if(c?c.legacy===true:!!s.te)s.core.legacy=true;if(c&&c.lab===true)s.core.lab=true;if(c&&c.since!==undefined)s.core.since=num(c.since,0);}
   s.capDeal=s.capDeal&&typeof s.capDeal==='object'&&own(CAP_ROUTES,s.capDeal.c)?{at:num(s.capDeal.at,0),c:s.capDeal.c}:null;
   s.inc=s.inc.filter(i=>i&&typeof i.type==='string').map(i=>(i.type==='maxpfx'&&(i.type='ixloop'),i.id=sid(i.id),i.until=num(i.until,s.day),i.cost=num(i.cost,0),i.msg=String(i.msg||'').slice(0,400),i.fix=i.fix==null?undefined:String(i.fix).slice(0,60),i));

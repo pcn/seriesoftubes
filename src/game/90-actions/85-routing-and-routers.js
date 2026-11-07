@@ -14,6 +14,14 @@ Object.assign(ACT,{
  addParallel:({id})=>{const l=S.links.find(x=>x.id===id);if(l)openLinkModal(l.a,l.b);},
  popStdSet:({city})=>{const p=S.pops[city];if(!p||pzOn())return;S.popStd={g:p.rgen||0,rt:p.routers||1};toast(tr('pop_std.new_pops_now_start_with',{n:S.popStd.rt,model:esc(RG[S.popStd.g].n)}),'good');sfx('click');after();},
  popStdClear:()=>{S.popStd=null;sfx('click');after();},
+ // Router kits (#315). The standard for new POPs follows the kit it was taken from (k) when that kit is saved again.
+ popKitApply:({city,k})=>{if(POP_KITS.includes(k))popKitApply(city,k);},
+ popKitSet:({city,k})=>{const p=S.pops[city];if(!p||pzOn()||!POP_KITS.includes(k))return;const d={g:p.rgen||0,rt:p.routers||1};S.popKits[k]=d;if(S.popStd&&S.popStd.k===k)S.popStd={...d,k};
+   toast(tr('pop_kit.kit_is_now_n_model',{kit:tr(KIT_N[k]),n:d.rt,model:esc(RG[d.g].n)}),'good');sfx('click');after();},
+ popKitClear:({k})=>{if(!POP_KITS.includes(k))return;S.popKits[k]=null;if(S.popStd&&S.popStd.k===k)delete S.popStd.k;sfx('click');after();},
+ popKitNew:({k})=>{const d=POP_KITS.includes(k)&&S.popKits[k];if(!d||pzOn())return;S.popStd={g:d.g,rt:d.rt,k};toast(tr('pop_std.new_pops_now_start_with',{n:d.rt,model:esc(RG[d.g].n)}),'good');sfx('click');after();},
+ popKitPair:()=>{S.popKitPair=!S.popKitPair;sfx('click');after();},
+ kitEdit:()=>{UI.kitEdit=!UI.kitEdit;renderPanel();},
  addRouter:({city})=>{const p=S.pops[city];if(!p||(p.routers||1)>=RMAX)return;if(!spend(routerCost(p.rgen||0,p.routers||1)))return;p.routers=(p.routers||1)+1;floater(CITY[city].x,CITY[city].y-30,tr('common.router_added'),'#FF4F9A');after();},
  models:()=>{UI.models=!UI.models;renderPanel();},
  rmRouter:({city})=>{const p=S.pops[city];if(!p||(p.routers||1)<=1)return;if(portsUsed(city)>portsMax(city,undefined,p.routers-1)){toast(tr('routing_and_routers.unplug_something_first_used_ports',{used:fmtPorts(portsUsed(city)),max:portsMax(city,undefined,p.routers-1)}),'bad');sfx('err');return;}p.routers--;{const back=tradeIn(p.rgen||0,1);if(back>0){S.cash+=back;toast(tr('routing_and_routers.sold_a_model_on_ebuy_price',{model:esc(RG[p.rgen||0].n),price:fmt$(back)}),'good');}}after();},
