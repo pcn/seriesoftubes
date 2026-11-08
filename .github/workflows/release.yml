@@ -23,6 +23,10 @@ on:
         description: Only the weekly puzzles changed (weekly-puzzle.yml); the release itself was tested when it shipped
         type: boolean
         default: false
+      tested:
+        description: The tag's tests already passed (auto-release.yml tests it before tagging)
+        type: boolean
+        default: false
 
 # Least privilege: only the deploy job can write to Pages.
 permissions:
@@ -33,9 +37,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The release's tests, split over several runners like every push (ci.yml). Skipped when auto-release.yml has just
+  # run them on this tag, and for a weekly redeploy (the build step below tests the weekly files against the tag).
+  tests:
+    if: ${{ (github.event_name == 'workflow_dispatch' || !github.event.release.prerelease) && !inputs.weekly && !inputs.tested }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event.release.tag_name || inputs.tag }}
+
   build:
+    needs: tests
     # Pre-releases are for testing and never go live.
-    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || !github.event.release.prerelease) && (needs.tests.result == 'success' || needs.tests.result == 'skipped') }}
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -93,10 +106,18 @@ jobs:
           node scripts/weekly-puzzle.js --check
           if [ -f scripts/weekly-scenario.js ]; then node scripts/weekly-scenario.js --check; fi
           if [ -f scripts/weekly-architect.js ]; then node scripts/weekly-architect.js --check; fi
-      - run: npm test
-        if: ${{ !inputs.weekly }}
+      # The weekly files come from main, not the tag. When they (after fitting) are the tag's own, CI already tested
+      # them with it; otherwise (a newer week, a refitted one) they are tested against this release here.
+      - name: Are the weekly files the tag's own?
+        id: weekly
+        run: |
+          if [ -z "$(git status --porcelain -- site/puzzles/weekly site/scenarios/weekly site/architect/weekly)" ]; then
+            echo "Same weekly files as the tag: tested with it already."; echo "same=true" >> "$GITHUB_OUTPUT"
+          else
+            git status --short -- site/puzzles/weekly site/scenarios/weekly site/architect/weekly; echo "same=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Test the weekly puzzles against this release
-        if: ${{ inputs.weekly && hashFiles('scripts/weekly-puzzle.js') != '' }}
+        if: ${{ hashFiles('scripts/weekly-puzzle.js') != '' && (steps.weekly.outputs.same != 'true' || !(inputs.tested || needs.tests.result == 'success')) }}
         run: npm test -- tests/weekly-puzzle.test.js tests/puzzles.test.js $(ls tests/weekly-scenario.test.js tests/weekly-architect.test.js 2>/dev/null)
       - name: Build site
         run: VERSION="${TAG#v}" REQUIRE_NOTES=1 npm run build
@@ -104,8 +125,11 @@ jobs:
         with:
           path: ./_site
 
+  # A skipped job skips everything that needs it, even through build (which runs anyway): without always() here, a
+  # release whose tests auto-release.yml already ran built and never deployed (v3.2.0).
   deploy:
     needs: build
+    if: ${{ always() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -119,7 +143,7 @@ jobs:
   # the site is live.
   indexnow:
     needs: deploy
-    if: ${{ !inputs.weekly }}
+    if: ${{ always() && needs.deploy.result == 'success' && !inputs.weekly }}
     runs-on: ubuntu-latest
     env:
       # IndexNow keys are public by design (also served at /<key>.txt).

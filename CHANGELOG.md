@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+## [3.2.0] — 2026-11-07
+
+- New badges for traffic: serve 1 Tbps and 10 Tbps on the way to the 100 Tbps and petabit ones, and carry a petabyte, 100 petabytes, an exabyte and a zettabyte in one game. The dashboard shows how much traffic your network has carried so far, and only the top step of each ladder is legendary: Hundred Terabits is now epic.
+- Lambda Bazaar, a capacity market for your dark fiber, is a new tab in the NOC dashboard. Sell spectrum, managed 100G, 400G, 800G and 1.6T waves, and dark pair IRUs on every route you hold fiber on, and choose how much to keep back for your own traffic, from what demand the broker lists, and the price it never sells below. What each route wants moves all the time and grows every year: hot routes pay more, a fiber cut next door or a hyperscaler breaking ground sends demand up, buyers move from 100G to bigger waves over the years, and carriers already on your glass ask to move up a size. Short, straight routes earn more for fast waves. A Cable broker pays the broker 3% instead of 10%, and sees where each route is heading and which routes between its POPs are worth building.
+
+## [3.1.0] — 2026-11-07
+
 - Whoever runs sales can now answer renewal haggles for you, each in their own way: switch it on at the sales desk. The engineer keeps nerdy customers at the market price and gives everyone else their discount, the shark refuses discounts and some customers walk, and the CEO settles it on the golf course, for better or worse.
 - The three interns now each have something they are best at: Anycast Annie peers every day and orders PNIs twice a week, Kevin from the night shift swaps two line systems a night and never fat-fingers anything, and Tracy Route buys capacity as if traffic were already 10% higher. They run the same orders at the same salary.
 - Your intern can upgrade optical transport: a new standing order moves full, busy fiber to a bigger line system, or trades its smallest channels for bigger optics. Pick a line system, and every fiber on a smaller one is moved up to it. A line system swap takes the fiber down for a day, so the intern only does it where the traffic gets around it and no customer rides it, one a night.

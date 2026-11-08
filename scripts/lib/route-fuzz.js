@@ -64,6 +64,13 @@ const weight = (b) => (BUILD.test(b.act) ? 8 : UIACT.test(b.act) ? 0.3 : 1);
    opts: moves (count, default 50 to 200 by seed), maxDays per day-move, onMove(i, move) */
 function playGame(pages, seed, opts = {}) {
   const { base, head } = pages;
+  // A badge only this checkout has would unlock in its game alone, and an unlock writes a log line, which shifts every
+  // id made after it: the comparison is about routing, so the new badges are taken off this checkout's page.
+  if (!pages.badges && base !== head) {
+    const ids = base.ev('JSON.stringify(BADGES.map((b)=>b.id))');
+    head.ev(`{const keep=new Set(${ids});for(let i=BADGES.length-1;i>=0;i--)if(!keep.has(BADGES[i].id))BADGES.splice(i,1);}`);
+    pages.badges = true;
+  }
   const r = rng(seed * 2654435761);
   const both = (fn, ...a) => [base.call(fn, ...a), head.call(fn, ...a)];
   const L = base.call('lists');
@@ -104,12 +111,14 @@ function playGame(pages, seed, opts = {}) {
 
   // A screen's buttons on both pages; the same list or a divergence.
   // Buttons for actions main's page does not have (a new feature's) are left out: the driver only presses what both have.
-  // So are the switches and dials of a standing order this checkout retired (main's sheet still shows them).
-  let baseActs = null, retired = null;
+  // So are the switches and dials of a standing order this checkout retired (main's sheet still shows them), and a
+  // dashboard tab main's page does not have yet.
+  let baseActs = null, retired = null, baseTabs = null;
   const screen = (w) => { const [a0, b0] = both('screen', w); baseActs = baseActs || new Set(base.call('acts'));
     if (!retired) { const [o1, o2] = both('sKeys'); retired = new Set(o1.orders.filter((k) => !o2.orders.includes(k))); }
     const a = Array.isArray(a0) ? a0.filter((x) => !(/^ops/.test(x.act) && retired.has(x.args && x.args.k))) : a0;
-    const b = Array.isArray(b0) ? b0.filter((x) => baseActs.has(x.act)) : b0; same('buttons of ' + JSON.stringify(w), a, b); return a || []; };
+    if (!baseTabs) baseTabs = new Set(JSON.parse(base.ev('JSON.stringify(DTABS)')));
+    const b = Array.isArray(b0) ? b0.filter((x) => baseActs.has(x.act) && !(x.act === 'dashTab' && x.args && !baseTabs.has(x.args.k))) : b0; same('buttons of ' + JSON.stringify(w), a, b); return a || []; };
   const press = (b, where) => { acts[b.act] = (acts[b.act] || 0) + 1; const [e1, e2] = both('press', b); same('press ' + where, e1, e2); note(where + ' ' + b.act + JSON.stringify(b.args) + (e1 ? ' !' + e1 : '')); };
   // Answer whatever window opened, a few levels deep, then close it.
   const modal = (bias) => {
