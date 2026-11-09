@@ -86,3 +86,61 @@ test('days in a row reuse the kept tables and route like a fresh start every day
   }
   assert.deepEqual(errors, []);
 });
+
+test('with Auto-TE, kept orders and the no-detour marks route like a fresh start every day', () => {
+  // The routing core (29-route-core.js) keeps each list's order for each city with the tables, and Auto-TE marks the
+  // pairs with no detour: both have to give exactly what scanning and searching afresh give. The network is made busy
+  // (half its link capacity) so that flows spill, detours are searched and many fail.
+  const { ev, errors } = open();
+  ev("S.core.run=2;S.te={on:true,day:S.day,script:'spill at 85%'};for(const b of S.biz)if(BIZ_T[b.type].l2&&b.city2)b.route='scenic';for(const l of S.links)if(l.kind==='wave')l.cap=(l.cap||0)/2;compute();compute();");
+  assert.equal(ev('!!(S.te.on&&coreTE())'), true);
+  let tried = 0;
+  for (let d = 0; d < 4; d++) {
+    ev('dayTick()');
+    const r = step(ev, '');
+    assert.ok(r.same, `day ${d}: the same routing with and without the kept tables`);
+    assert.ok(!r.g && !r.x, `day ${d}: a day of demand only keeps the tables`);
+    tried = Math.max(tried, ev('R.teMoved'));
+  }
+  assert.ok(tried > 0, 'Auto-TE moved traffic onto detours');
+  assert.deepEqual(errors, []);
+});
+
+// When the exits change but the graph does not (a network leaves an exchange because its PNI came up), the lists that
+// did not change keep the orders routing worked out for them (the same arrays, used the same day), the ones that did
+// start again, and routing is still exactly routing without the kept tables, day after day.
+test('lists an exit change leaves alone keep their orders; routing stays the same as without the kept tables', () => {
+  const { ev, errors } = open();
+  // Two days on the kept build: the lists get their orders.
+  ev('compute();compute();');
+  ev('window.__ords=new Set(RC.x.lists.flatMap(d=>d.cs?d.ord.filter(Boolean):[d.ord]).filter(o=>Object.keys(o).length));');
+  assert.ok(ev('__ords.size') > 5, `orders worked out: ${ev('__ords.size')}`);
+  // One network leaves one exchange: the exits key moves, the graph does not.
+  const r = step(ev, `(()=>{const ix=Object.keys(S.ixp).find(x=>ixSessions(x).size>3),n=[...ixSessions(ix)][0];window.__left=n+'@'+ix;
+    S.peers[n+'@'+ix]=false;delete S.peers[n+'@'+ix];S.rs[ix]=false;S.pni.push({id:'pk1',net:n,city:ixCity(ix),tier:1,n:1});})()`);
+  assert.equal(r.g, false, 'same graph');
+  assert.equal(r.x, true, 'the exits changed');
+  assert.equal(r.same, true, 'the same routing as without the kept tables');
+  const kept = ev('RC.x.lists.flatMap(d=>d.cs?d.ord.filter(Boolean):[d.ord]).filter(o=>__ords.has(o)).length');
+  const all = ev('RC.x.lists.length');
+  assert.ok(kept > 0 && kept < ev('__ords.size') + 1, `lists that kept their orders: ${kept} of ${all}`);
+  // And a few more days, with the next change between them.
+  for (let d = 0; d < 3; d++) assert.equal(step(ev, 'for(const c in S.pops)if(S.pops[c].bb)S.pops[c].bb.d*=1.03').same, true, `day ${d + 1} after`);
+  assert.deepEqual(errors, []);
+});
+
+test('an exit that turns from an exchange into a PNI at the same place in the list does not keep its old order', () => {
+  const { ev, errors } = open();
+  // The last exchange with a few networks on it, its city A, and a network m there that also gets a PNI at A.
+  ev(`(()=>{const ixs=Object.keys(S.ixp).filter(c=>S.pops[ixCity(c)]);let p=null;
+    for(let k=ixs.length-1;k>=0&&!p;k--){const c=ixs[k],ss=[...ixSessions(c)];if(ss.length>2)p={c,A:ixCity(c),m:ss[0]};}
+    window.__P=p;for(const c of Object.keys(S.ixp).slice(Object.keys(S.ixp).indexOf(p.c)+1))delete S.ixp[c];
+    S.pni.push({id:'pz0',net:p.m,city:p.A,tier:1,n:1,pref:'normal'});})();compute();compute();compute();`);
+  assert.ok(ev('!!__P'), 'an exchange to drop');
+  // The exchange goes and a PNI with m at A comes first: an exit of the same city and preference, but now a PNI.
+  const r = step(ev, `delete S.ixp[__P.c];S.pni.unshift({id:'pz1',net:__P.m,city:__P.A,tier:1,n:1,pref:'normal'})`);
+  assert.equal(r.g, false, 'same graph');
+  assert.equal(r.x, true, 'the exits changed');
+  assert.equal(r.same, true, 'the same routing as without the kept tables');
+  assert.deepEqual(errors, []);
+});
